@@ -1,7 +1,7 @@
 ﻿LiveSplit.ThiefDS v0.9.0
 =====================
 
-LiveSplit.ThiefDS is a [LiveSplit](http://livesplit.org/) component for Deus Ex: Invisible War (for real!).
+LiveSplit.ThiefDS is a [LiveSplit](http://livesplit.org/) component for Thief: Deadly Shadows (for real!).
 
 Features
 --------
