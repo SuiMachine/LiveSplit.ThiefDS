@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using LiveSplit.ComponentUtil;
 
 namespace LiveSplit.ThiefDS
 {
@@ -189,6 +188,14 @@ namespace LiveSplit.ThiefDS
             {
                 return null;
             }
+
+            /*if (game.MainModule.ModuleMemorySize != (int)ExpectedDllSizes.DXIWSteam && game.MainModule.ModuleMemorySize != (int)ExpectedDllSizes.DXIWGOG)
+            {
+                _ignorePIDs.Add(game.Id);
+                _uiThread.Send(d => MessageBox.Show("Unexpected game version. Deus Ex Invisible War (1.2) on Steam or GOG is required.", "LiveSplit.DXIW",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error), null);
+                return null;
+            }*/
 
             return game;
         }
