@@ -5,6 +5,7 @@
 </files>
 <changelog>
 <change>Updated to support Steam version.</change>
+<change>Non-safe memory reading.</change>
 </changelog>
 </update>
 <update version="0.9.0">
