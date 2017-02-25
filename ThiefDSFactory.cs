@@ -11,7 +11,7 @@ namespace LiveSplit.ThiefDS
 {
     public class ThiefDSFactory : IComponentFactory
     {
-        private DXIWComponent _instance;
+        private ThiefDSComponent _instance;
 
         public string ComponentName
         {
@@ -20,7 +20,7 @@ namespace LiveSplit.ThiefDS
 
         public string Description
         {
-            get { return "Automates loading removal for Thief: Deadly Shadows."; }
+            get { return "Automates load removal for ThiefDS."; }
         }
 
         public ComponentCategory Category
@@ -55,7 +55,7 @@ namespace LiveSplit.ThiefDS
                 throw new Exception("Component already loaded.");
             }
 
-            return (_instance = new DXIWComponent(state, createAsLayoutComponent));
+            return (_instance = new ThiefDSComponent(state, createAsLayoutComponent));
         }
 
         public string UpdateName

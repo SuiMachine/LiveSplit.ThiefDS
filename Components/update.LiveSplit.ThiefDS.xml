@@ -1,4 +1,12 @@
 <updates>
+<update version="1.0.0">
+<files>
+<file path="Components/LiveSplit.ThiefDS.dll" status="changed"/>
+</files>
+<changelog>
+<change>Updated to support Steam version.</change>
+</changelog>
+</update>
 <update version="0.9.0">
 <files>
 <file path="Components/LiveSplit.ThiefDS.dll" status="changed"/>

@@ -5,11 +5,13 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using LiveSplit.ComponentUtil;
 
 namespace LiveSplit.ThiefDS
 {
     class GameMemory
     {
+
         public event EventHandler OnLoadStarted;
         public event EventHandler OnLoadFinished;
 
@@ -17,21 +19,21 @@ namespace LiveSplit.ThiefDS
         private CancellationTokenSource _cancelSource;
         private SynchronizationContext _uiThread;
         private List<int> _ignorePIDs;
+        private ThiefDSSettings _settings;
 
-        private DeepPointer _IsLoading;
+        private DeepPointer _isLoadingPtr;
+        private IntPtr baseAddress = IntPtr.Zero;
 
         private enum ExpectedDllSizes
         {
         }
 
-        public void resetSplitStates()
-        {
-        }
+        public bool[] splitStates { get; set; }
 
         public GameMemory(ThiefDSSettings componentSettings)
         {
-            _IsLoading = new DeepPointer("ole32.dll", 0x146310);
-            resetSplitStates();
+            _isLoadingPtr = new DeepPointer(0x5FFA00);
+            _settings = componentSettings;
 
             _ignorePIDs = new List<int>();
         }
@@ -63,6 +65,11 @@ namespace LiveSplit.ThiefDS
             _thread.Wait();
         }
 
+        bool isLoading = false;
+        bool prevIsLoading = false;
+        bool loadingStarted = false;
+        uint delay = 62;
+
         void MemoryReadThread()
         {
             Debug.WriteLine("[NoLoads] MemoryReadThread");
@@ -71,55 +78,60 @@ namespace LiveSplit.ThiefDS
             {
                 try
                 {
-                    bool isLoading;
-                    bool prevIsLoading = false;
-                    bool loadingStarted = false;
-                    uint simpleDelay = 62;                                                                                   //Counts down 62*15ms before it states there is no loading
+                    Debug.WriteLine("[NoLoads] Waiting for dx2main.exe...");
 
-                    Debug.WriteLine("[NoLoads] Waiting for T3Main.EXE...");
-                    uint frameCounter = 0;
-                    
                     Process game;
                     while ((game = GetGameProcess()) == null)
                     {
-                        isLoading = true;                                                                                   //Required, because of the game killing process during loadings.
-
-                        if (isLoading != prevIsLoading)
-                        {
-                            if (isLoading)
-                            {
-                                Debug.WriteLine(String.Format("[NoLoads] Load Start - {0}", frameCounter));
-
-                                loadingStarted = true;
-
-                                // pause game timer
-                                _uiThread.Post(d =>
-                                {
-                                    if (this.OnLoadStarted != null)
-                                    {
-                                        this.OnLoadStarted(this, EventArgs.Empty);
-                                    }
-                                }, null);
-                                simpleDelay = 62;
-                            }
-                        }
-
+                        delay = 90;
                         Thread.Sleep(250);
                         if (_cancelSource.IsCancellationRequested)
                         {
                             return;
                         }
 
-                        prevIsLoading = isLoading;
+                        isLoading = true;
+                        baseAddress = IntPtr.Zero;
+
+                        if (isLoading != prevIsLoading)
+                        {
+                            loadingStarted = true;
+
+                            // pause game timer
+                            _uiThread.Post(d =>
+                            {
+                                if (this.OnLoadStarted != null)
+                                {
+                                    this.OnLoadStarted(this, EventArgs.Empty);
+                                }
+                            }, null);
+                        }
+
+                        prevIsLoading = true;
+
                     }
 
                     Debug.WriteLine("[NoLoads] Got games process!");
 
+                    uint frameCounter = 0;
+
                     while (!game.HasExited)
                     {
-                        _IsLoading.Deref(game, out isLoading);
-                        if(simpleDelay==0)
+                        if(delay == 0)
                         {
+                            if(_settings.UseNonSafeMemoryReading)
+                            {   //You've seen nothing!!!!!
+                                if(baseAddress == IntPtr.Zero)
+                                {
+                                    baseAddress = game.MainModule.BaseAddress;
+                                }
+                                
+                                if(baseAddress != IntPtr.Zero)
+                                    isLoading = Convert.ToBoolean(Trainer.ReadByte(game, baseAddress.ToInt32() + 0x5FFA00));
+                            }
+                            else
+                                _isLoadingPtr.Deref(game, out isLoading);
+
                             if (isLoading != prevIsLoading)
                             {
                                 if (isLoading)
@@ -156,22 +168,35 @@ namespace LiveSplit.ThiefDS
                                     }
                                 }
                             }
+
+                            prevIsLoading = isLoading;
+                            frameCounter++;
+
+                            Thread.Sleep(15);
+
+                            if (_cancelSource.IsCancellationRequested)
+                            {
+                                return;
+                            }
                         }
                         else
                         {
-                            simpleDelay--;
-                        }
-                        prevIsLoading = isLoading;
-
-                        frameCounter++;
-
-                        Thread.Sleep(15);
-
-                        if (_cancelSource.IsCancellationRequested)
-                        {
-                            return;
+                            prevIsLoading = isLoading;
+                            frameCounter++;
+                            delay--;
+                            Thread.Sleep(15);
                         }
                     }
+
+                    // pause game timer on exit or crash
+                    _uiThread.Post(d =>
+                    {
+                        if (this.OnLoadStarted != null)
+                        {
+                            this.OnLoadStarted(this, EventArgs.Empty);
+                        }
+                    }, null);
+                    isLoading = true;
                 }
                 catch (Exception ex)
                 {
@@ -181,6 +206,23 @@ namespace LiveSplit.ThiefDS
             }
         }
 
+        private int getDLLAddress(Process procRef)
+        {
+            try
+            {
+                IntPtr ptr = AwfulRippedOffCode.GetGameModuleBase(procRef);
+
+                return ptr.ToInt32();
+            }
+            catch(Exception e)
+            {
+                Debug.WriteLine(e.ToString());
+                return 0x0;
+            }
+
+        }
+
+
         Process GetGameProcess()
         {
             Process game = Process.GetProcesses().FirstOrDefault(p => p.ProcessName.ToLower() == "t3main" && !p.HasExited && !_ignorePIDs.Contains(p.Id));
@@ -188,14 +230,6 @@ namespace LiveSplit.ThiefDS
             {
                 return null;
             }
-
-            /*if (game.MainModule.ModuleMemorySize != (int)ExpectedDllSizes.DXIWSteam && game.MainModule.ModuleMemorySize != (int)ExpectedDllSizes.DXIWGOG)
-            {
-                _ignorePIDs.Add(game.Id);
-                _uiThread.Send(d => MessageBox.Show("Unexpected game version. Deus Ex Invisible War (1.2) on Steam or GOG is required.", "LiveSplit.DXIW",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error), null);
-                return null;
-            }*/
 
             return game;
         }

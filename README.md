@@ -1,4 +1,4 @@
-﻿LiveSplit.ThiefDS v0.9.0
+﻿LiveSplit.ThiefDS
 =====================
 
 LiveSplit.ThiefDS is a [LiveSplit](http://livesplit.org/) component for Thief: Deadly Shadows (for real!).
