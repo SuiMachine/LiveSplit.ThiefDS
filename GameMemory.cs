@@ -87,7 +87,7 @@ namespace LiveSplit.ThiefDS
                     Process game;
                     while ((game = GetGameProcess()) == null)
                     {
-                        delay = 90;
+                        delay = 120;
                         Thread.Sleep(250);
                         if (_cancelSource.IsCancellationRequested)
                         {
@@ -151,6 +151,9 @@ namespace LiveSplit.ThiefDS
                             }
 
 
+                            //Debug.WriteLine("Read from memory: " + isLoading);
+
+
                             if (isLoading != prevIsLoading)
                             {
                                 if (isLoading)
@@ -203,7 +206,9 @@ namespace LiveSplit.ThiefDS
                             prevIsLoading = isLoading;
                             frameCounter++;
                             delay--;
+                            //Debug.WriteLine("Artificial delay");
                             Thread.Sleep(15);
+
                         }
                     }
 
@@ -245,6 +250,13 @@ namespace LiveSplit.ThiefDS
         {
             Process game = Process.GetProcesses().FirstOrDefault(p => (p.ProcessName.ToLower() == "t3main" || p.ProcessName.ToLower() == "thief3") && !p.HasExited && !_ignorePIDs.Contains(p.Id));
 
+            if (game == null)
+            {
+                _isLoadingPtr = null;
+                dllBaseAddress = 0x0;
+                return null;
+            }
+
             if (game.MainModuleWow64Safe().ModuleMemorySize == (int)ExpectedDllSizes.Sneaky)
             {
                 alternativeDLLRead = true;
@@ -259,13 +271,6 @@ namespace LiveSplit.ThiefDS
                 alternativeDLLRead = false;
                 if(_isLoadingPtr == null)
                     _isLoadingPtr = new DeepPointer(0x5FFA00);
-            }
-
-            if (game == null)
-            {
-                _isLoadingPtr = null;
-                dllBaseAddress = 0x0;
-                return null;
             }
 
             return game;
