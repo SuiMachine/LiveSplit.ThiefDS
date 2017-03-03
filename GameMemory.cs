@@ -24,15 +24,19 @@ namespace LiveSplit.ThiefDS
         private DeepPointer _isLoadingPtr;
         private IntPtr baseAddress = IntPtr.Zero;
 
+        private bool alternativeDLLRead = false;
+        private int dllBaseAddress = 0x0;
+
         private enum ExpectedDllSizes
         {
+			GOG = 7438336,
+            Sneaky = 7446528
         }
 
         public bool[] splitStates { get; set; }
 
         public GameMemory(ThiefDSSettings componentSettings)
         {
-            _isLoadingPtr = new DeepPointer(0x5FFA00);
             _settings = componentSettings;
 
             _ignorePIDs = new List<int>();
@@ -119,18 +123,33 @@ namespace LiveSplit.ThiefDS
                     {
                         if(delay == 0)
                         {
-                            if(_settings.UseNonSafeMemoryReading)
-                            {   //You've seen nothing!!!!!
-                                if(baseAddress == IntPtr.Zero)
+                            if(alternativeDLLRead)
+                            {
+                                //this one is for SneakyPatch
+                                if (_settings.UseNonSafeMemoryReading)
                                 {
-                                    baseAddress = game.MainModule.BaseAddress;
+                                    if (dllBaseAddress != 0x0)
+                                        isLoading = Convert.ToBoolean(Trainer.ReadByte(game, dllBaseAddress + 0x147310));
                                 }
-                                
-                                if(baseAddress != IntPtr.Zero)
-                                    isLoading = Convert.ToBoolean(Trainer.ReadByte(game, baseAddress.ToInt32() + 0x5FFA00));
+                                else
+                                    _isLoadingPtr.Deref(game, out isLoading);
                             }
                             else
-                                _isLoadingPtr.Deref(game, out isLoading);
+                            {
+                                if (_settings.UseNonSafeMemoryReading)
+                                {   //You've seen nothing!!!!!
+                                    if (baseAddress == IntPtr.Zero)
+                                    {
+                                        baseAddress = game.MainModule.BaseAddress;
+                                    }
+
+                                    if (baseAddress != IntPtr.Zero)
+                                        isLoading = Convert.ToBoolean(Trainer.ReadByte(game, baseAddress.ToInt32() + 0x5FFA00));
+                                }
+                                else
+                                    _isLoadingPtr.Deref(game, out isLoading);
+                            }
+
 
                             if (isLoading != prevIsLoading)
                             {
@@ -219,15 +238,33 @@ namespace LiveSplit.ThiefDS
                 Debug.WriteLine(e.ToString());
                 return 0x0;
             }
-
         }
 
 
         Process GetGameProcess()
         {
-            Process game = Process.GetProcesses().FirstOrDefault(p => p.ProcessName.ToLower() == "t3main" && !p.HasExited && !_ignorePIDs.Contains(p.Id));
+            Process game = Process.GetProcesses().FirstOrDefault(p => (p.ProcessName.ToLower() == "t3main" || p.ProcessName.ToLower() == "thief3") && !p.HasExited && !_ignorePIDs.Contains(p.Id));
+
+            if (game.MainModuleWow64Safe().ModuleMemorySize == (int)ExpectedDllSizes.Sneaky)
+            {
+                alternativeDLLRead = true;
+                if (dllBaseAddress == 0x0 || _isLoadingPtr == null)
+                {
+                    dllBaseAddress = getDLLAddress(game);
+                    _isLoadingPtr = new DeepPointer("ole32.dll", 0x147310);
+                }
+            }
+            else
+            {
+                alternativeDLLRead = false;
+                if(_isLoadingPtr == null)
+                    _isLoadingPtr = new DeepPointer(0x5FFA00);
+            }
+
             if (game == null)
             {
+                _isLoadingPtr = null;
+                dllBaseAddress = 0x0;
                 return null;
             }
 
